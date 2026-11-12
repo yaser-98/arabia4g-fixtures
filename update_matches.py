@@ -1,3 +1,99 @@
+#!/usr/bin/env python3
+"""Build a public fixture list from football-data.org, preserving optional manual links.
+Only fixtures/schedules: no discovery or redistribution of sports streams.
+"""
+import json
+import os
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
+
+ROOT = Path(__file__).resolve().parent
+OUTPUT = ROOT / 'docs' / 'matches.json'
+MANUAL = ROOT / 'manual_matches.json'
+TOKEN = os.getenv('FOOTBALL_DATA_TOKEN', '').strip()
+COMPS = [x.strip().upper() for x in os.getenv('COMPETITIONS', 'PL,PD,CL,SA,BL1,FL1').split(',') if x.strip()]
+
+
+TEAM_AR = {
+    "1. FC Köln": "كولن",
+    "1. FC Union Berlin": "يونيون برلين",
+    "1. FSV Mainz 05": "ماينز",
+    "AC Milan": "ميلان",
+    "AC Monza": "مونزا",
+    "ACF Fiorentina": "فيورنتينا",
+    "AFC Bournemouth": "بورنموث",
+    "AJ Auxerre": "أوكسير",
+    "AS Monaco FC": "موناكو",
+    "AS Roma": "روما",
+    "Angers SCO": "أنجيه",
+    "Arsenal FC": "أرسنال",
+    "Aston Villa FC": "أستون فيلا",
+    "Atalanta BC": "أتالانتا",
+    "Athletic Club": "أتلتيك بلباو",
+    "Bayer 04 Leverkusen": "باير ليفركوزن",
+    "Bologna FC 1909": "بولونيا",
+    "Borussia Dortmund": "بوروسيا دورتموند",
+    "Borussia Mönchengladbach": "بوروسيا مونشنغلادباخ",
+    "Brentford FC": "برينتفورد",
+    "Brighton & Hove Albion FC": "برايتون",
+    "CA Osasuna": "أوساسونا",
+    "Cagliari Calcio": "كالياري",
+    "Chelsea FC": "تشيلسي",
+    "Club Atlético de Madrid": "أتلتيكو مدريد",
+    "Club Brugge KV": "كلوب بروج",
+    "Como 1907": "كومو",
+    "Coventry City FC": "كوفنتري سيتي",
+    "Crystal Palace FC": "كريستال بالاس",
+    "Deportivo Alavés": "ديبورتيفو ألافيس",
+    "ES Troyes AC": "تروا",
+    "Eintracht Frankfurt": "آينتراخت فرانكفورت",
+    "Elche CF": "إلتشي",
+    "Everton FC": "إيفرتون",
+    "FC Augsburg": "أوغسبورغ",
+    "FC Barcelona": "برشلونة",
+    "FC Bayern München": "بايرن ميونخ",
+    "FC Internazionale Milano": "إنتر ميلان",
+    "FC Lorient": "لوريان",
+    "FC Porto": "بورتو",
+    "FC Schalke 04": "شالكه",
+    "FK Bodø/Glimt": "بودو غليمت",
+    "FK Shakhtar Donetsk": "شاختار دونيتسك",
+    "Fenerbahçe SK": "فنربخشة",
+    "Feyenoord Rotterdam": "فينورد",
+    "Frosinone Calcio": "فروزينوني",
+    "Fulham FC": "فولهام",
+    "Galatasaray SK": "غلطة سراي",
+    "Genoa CFC": "جنوى",
+    "Getafe CF": "خيتافي",
+    "Hamburger SV": "هامبورغ",
+    "Hull City AFC": "هال سيتي",
+    "Ipswich Town FC": "إيبسويتش تاون",
+    "Juventus FC": "يوفنتوس",
+    "LASK Linz": "لاسك لينز",
+    "Le Havre AC": "لوهافر",
+    "Le Mans FC": "لومان",
+    "Leeds United FC": "ليدز يونايتد",
+    "Levante UD": "ليفانتي",
+    "Lille OSC": "ليل",
+    "Liverpool FC": "ليفربول",
+    "Manchester City FC": "مانشستر سيتي",
+    "Manchester United FC": "مانشستر يونايتد",
+    "Málaga CF": "ملقا",
+    "Newcastle United FC": "نيوكاسل يونايتد",
+    "Nottingham Forest FC": "نوتنغهام فورست",
+    "OGC Nice": "نيس",
+    "Olympique Lyonnais": "ليون",
+    "Olympique de Marseille": "مارسيليا",
+    "PAE AEK": "أيك أثينا",
+    "PSV": "آيندهوفن",
+    "Paris FC": "باريس إف سي",
+    "Paris Saint-Germain FC": "باريس سان جيرمان",
+    "Parma Calcio 1913": "بارما",
+    "RB Leipzig": "لايبزيغ",
     "RC Celta de Vigo": "سيلتا فيغو",
     "RC Deportivo La Coruña": "ديبورتيفو لاكورونيا",
     "RC Strasbourg Alsace": "ستراسبورغ",

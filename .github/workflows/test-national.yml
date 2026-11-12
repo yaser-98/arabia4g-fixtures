@@ -1,0 +1,58 @@
+
+name: Test national team fixtures
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check API Football
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          import json
+          import urllib.request
+          import urllib.parse
+
+          key = os.environ.get("API_FOOTBALL_KEY", "")
+          if not key:
+              raise SystemExit("API_FOOTBALL_KEY is missing")
+
+          base = "https://v3.football.api-sports.io/fixtures"
+
+          for day in ["2026-11-12", "2026-11-13"]:
+              query = urllib.parse.urlencode({
+                  "date": day,
+                  "timezone": "Asia/Aden"
+              })
+              request = urllib.request.Request(
+                  base + "?" + query,
+                  headers={"x-apisports-key": key}
+              )
+
+              try:
+                  with urllib.request.urlopen(request, timeout=25) as response:
+                      data = json.load(response)
+
+                  print("DATE:", day)
+                  print("ERRORS:", data.get("errors"))
+                  print("RESULTS:", data.get("results"))
+                  games = data.get("response", [])
+
+                  for game in games[:15]:
+                      league = game.get("league", {}).get("name", "")
+                      teams = game.get("teams", {})
+                      home = teams.get("home", {}).get("name", "")
+                      away = teams.get("away", {}).get("name", "")
+                      print(league, "|", home, "vs", away)
+
+              except Exception as error:
+                  print("REQUEST FAILED:", str(error))
+          PY

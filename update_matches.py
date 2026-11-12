@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / 'docs' / 'matches.json'
 MANUAL = ROOT / 'manual_matches.json'
 TOKEN = os.getenv('FOOTBALL_DATA_TOKEN', '').strip()
-COMPS = [x.strip().upper() for x in os.getenv('COMPETITIONS', 'PL,PD,CL,SA,BL1,FL1').split(',') if x.strip()]
+COMPS = [x.strip().upper() for x in os.getenv('COMPETITIONS', 'PL,PD,CL,SA,BL1,FL1,WC,EC').split(',') if x.strip()]
 
 
 TEAM_AR = {

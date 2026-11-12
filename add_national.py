@@ -206,25 +206,38 @@ def main():
     if not isinstance(old, list):
         raise ValueError('docs/matches.json must contain a matches list')
     today = datetime.now(ZoneInfo('Asia/Aden')).date()
-    params = urlencode({'from': (today - timedelta(days=1)).isoformat(),
-                        'to': (today + timedelta(days=30)).isoformat(),
-                        'timezone': 'Asia/Aden'})
-    url = 'https://v3.football.api-sports.io/fixtures?' + params
-    req = Request(url, headers={'x-apisports-key': KEY, 'Accept': 'application/json',
-                                'User-Agent': 'Arabia4G-Fixtures/1.0'})
-    try:
-        with urlopen(req, timeout=40) as response:
-            payload = json.load(response)
-    except Exception as ex:
-        print(f'API-Football request failed: {ex}; keeping club schedule.', file=sys.stderr)
+    # The unscoped from/to query is rejected by API-Football. A date query
+    # was verified to work on this account. Fetch 6 days (yesterday + 5 days).
+    # Scheduled once every two hours: at most 6 * 12 = 72 requests per day.
+    games = []
+    valid_days = 0
+    for offset in range(-1, 5):
+        day = today + timedelta(days=offset)
+        params = urlencode({'date': day.isoformat()})
+        url = 'https://v3.football.api-sports.io/fixtures?' + params
+        req = Request(url, headers={
+            'x-apisports-key': KEY, 'Accept': 'application/json',
+            'User-Agent': 'Arabia4G-Fixtures/1.1'
+        })
+        try:
+            with urlopen(req, timeout=40) as response:
+                payload = json.load(response)
+        except Exception as ex:
+            print(f'API-Football {day}: request failed: {ex}; continuing.', file=sys.stderr)
+            continue
+        if payload.get('errors'):
+            print(f'API-Football {day}: errors: {payload["errors"]}; continuing.', file=sys.stderr)
+            continue
+        valid_days += 1
+        returned = payload.get('response') or []
+        games.extend(returned)
+        paging = payload.get('paging') or {}
+        if int(paging.get('total') or 1) > 1:
+            print(f'Warning: {day} has more than one page; first page only.', file=sys.stderr)
+        print(f'API-Football {day}: {len(returned)} fixtures')
+    if not valid_days:
+        print('No successful API-Football responses; keeping club schedule.', file=sys.stderr)
         return 0
-    if payload.get('errors'):
-        print('API-Football errors: ' + str(payload['errors']) + '; keeping club schedule.', file=sys.stderr)
-        return 0
-    games = payload.get('response') or []
-    paging = payload.get('paging') or {}
-    if int(paging.get('total') or 1) > 1:
-        print('Warning: API-Football has multiple pages; only first page was read.', file=sys.stderr)
     selected = []
     for game in games:
         if not is_national_competition(game.get('league')):
@@ -235,7 +248,6 @@ def main():
     doc['matches'] = sorted(old + selected, key=lambda m: m.get('kickoff') or '')
     OUTPUT.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(f'API-Football returned {len(games)} fixtures; added {len(selected)} international fixtures; total {len(doc["matches"])}.')
-    print(f'Quota remaining today: {payload.get("response_remaining", "see API dashboard")}')
     return 0
 
 

@@ -3,7 +3,7 @@ name: Update football fixtures
 on:
   workflow_dispatch:
   schedule:
-    - cron: '7,37 * * * *'
+    - cron: '7 */2 * * *'
 
 permissions:
   contents: read
